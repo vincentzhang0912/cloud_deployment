@@ -1,0 +1,47 @@
+Docker Hub 
+Username:vincentzys0912
+password:Zyslovey1821
+
+
+Frontend Setup using Groove Script
+1) Copy the Groove Script by clicking the following link
+2) Go to Jenkins Dashboard ---> Create a new view ---> frontend_pipeline ---> click on configure ---> click on pipeline ---> paste the Groove Script under script
+3) Under Stages ----> in line 16 check the variable name is same as .env file in Vscode (REACT_APP_BACKEND_URL=\'http://EC2-PUBLIC-IP:5000/api\'")
+sh 'echo "REACT_APP_BACKEND_URL=\'http://44.223.189.96:5000/api/\'" >> .env'
+4) in line 4 ---> registry = "YOUR DOCKERHUB USERNAME/rgclient"
+5) Click on build now
+6) copy the EC2-Public-ip and open in the new tab
+7) Remove the comments  /*  -----------  */  before and after the stage CLeanUp
+ /*
+//comment this first time from second build uncomment this code
+        stage('CleanUp') {
+            steps{
+                sh "docker stop rgclient"
+                sh "docker rm rgclient"
+                sh "docker rmi $registry -f"
+            }
+        }
+*/
+8) Click on the Save
+9) Again click on Build Now
+10) Remove the Comment from  //registryCredential = 'docker hub'
+
+environment {
+        registry = "procareer/rgclient"
+        //registryCredential = 'docker hub'
+        dockerImage = 'rgclient'
+    }
+
+11) Remove the Comment from  /* ------------- */ 
+ /*
+        stage('Deploy our image') {
+            steps{
+                script {
+                    docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push()
+                    }
+                }
+}
+        }*/
+12) Click on save
+13) Build Now
