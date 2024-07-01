@@ -1,0 +1,268 @@
+Item: backend_pipeline
+Login to Jenkins
+Select new item in the dashboard
+Enter the name backend_pipeline
+Select the “pipeline” and create
+Under Pipeline > Script, keep the following code
+
+RGSERVER SCRIPT
+pipeline {
+    agent any
+    environment {
+        registry = "yourdockerhub_userame/rgserver"
+        //registryCredential = 'docker_hub'
+        dockerImage = 'rgserver'
+    }
+    triggers {
+        // GitHub hook trigger for GITScm polling
+        githubPush()
+    }
+    stages {
+        stage('Cloning our Git') {
+            steps {
+                git branch: 'main', url: 'https git link of backend'
+             sh 'echo "MONGODBURL=\mongodb-url\'"   >> .env'
+             sh 'echo "DBUSERNAME=username"  >> .env'
+             sh 'echo "DBPASSWORD=password"  >> .env'
+             sh 'echo "FRONTENDURI=\'http://<public_ip>:3000\'"  >> .env'
+            }
+        }
+        /*
+      //comment this first time from second build uncomment this code
+        stage('CleanUp') {
+            steps{
+                sh "docker stop rgserver"
+                sh "docker rm rgserver"
+                sh "docker rmi $registry -f"
+            }
+        }
+        */
+
+        stage('Building our image') {
+            steps{
+                script {
+                    dockerImage = docker.build registry
+                }
+            }
+        }
+        stage('Run Container') {
+            steps{
+                sh "docker run -d -p 5000:5000 --name rgserver $registry"
+            }
+        }
+        /*
+        stage('Deploy our image') {
+            steps{
+                script {
+                    docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }*/
+       
+    }
+}
+
+
+Now, click on build now option, and make the build successful.
+Uncomment “Clean Up” stage in the above code, and build it.
+Setup credentials
+Go to Jenkins Dashboard > Manage Jenkins > Security: Credentials >  System 
+Click on the Add Credentials button on top right.
+Fill the form with Docker Hub credentials
+And provide an ID (docker_hub) and Create.
+Now go to Pipeline and configure, 
+Add the line under the environment  section after the registry key.
+ 	registryCredential = ‘docker_hub’
+And build the pipelines.
+Uncomment “Deploy our image” stage in the above code, and build it.
+After this build we can see the docker image pushed into the docker hub repository.
+
+Item: frontend_pipeline
+Login to Jenkins
+Select new item in the dashboard
+Enter the name frontend_pipeline
+Select the “pipeline” and create
+Under Pipeline > Script, keep the following code
+RGCLIENT SCRIPT
+pipeline {
+    agent any
+    environment {
+        registry = "procareer/rgclient"
+        //registryCredential = 'docker hub'
+        dockerImage = 'rgclient'
+    }
+    triggers {
+        // GitHub hook trigger for GITScm polling
+        githubPush()
+    }
+    stages {
+        stage('Cloning our Git') {
+            steps {
+                git branch: 'main', url: '<github_link>'
+                sh 'echo "REACT_APP_BACKEND_URL=\'http://<public_ip>:5000/api/\'" >> .env'
+            }
+        }
+        /*
+        //comment this first time from second build uncomment this code
+        stage('CleanUp') {
+            steps{
+                sh "docker stop rgclient"
+                sh "docker rm rgclient"
+                sh "docker rmi $registry -f"
+            }
+        }
+        */
+
+        stage('Building our image') {
+            steps{
+                script {
+                    dockerImage = docker.build registry
+                }
+            }
+        }
+        stage('Run Container') {
+            steps{
+                sh "docker run -d -p 3000:3000 --name rgclient $registry"
+            }
+        }
+        /*
+        stage('Deploy our image') {
+            steps{
+                script {
+                    docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }*/
+       
+    }
+}
+
+3. Now, click on build now option, and make the build successful.
+4. Uncomment “Clean Up” stage in the above code, and build it.
+5. Uncomment “Deploy our image” stage in the above code, and build it.
+6. After this build we can see the docker image pushed into the docker hub repository.
+
+Clear all Containers from docker.
+To stop all containers
+	sudo docker ps -q | xargs -r sudo docker stop
+
+To remove all containers
+ sudo docker ps -a -q | xargs -r sudo docker rm -f
+
+Now, Start Working with Kubernetes
+Connect to EC2 instance
+Install kubectl
+  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+Test Installation is success or failed:
+kubectl version --client
+
+
+Install K8s minukube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+
+sudo install minikube-linux-amd64 /usr/local/bin/minikube && rm minikube-linux-amd64
+
+
+Start the minikube
+minikube start
+If it fails group with docker
+sudo usermod -aG docker $USER && newgrp docker
+minikube status
+
+To see minkube environment
+	minikube dashboard
+Change the access permission to all
+kubectl proxy --address=’0.0.0.0’ --accept-hosts=’^*$’
+
+Access the Kubernetes Dashboard, in the browser.
+http://<public_ip>:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/workloads?namespace=default
+
+Click on + Icon on top right corner, and add the following script for Server Deployment (Realgrande Backend) and update the values, and then upload.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rgserver-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rgserver
+  template:
+    metadata:
+      labels:
+        app: rgserver
+    spec:
+    containers:
+      - name: rgserver
+        image: <docker hub id>/rgserver
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rgserver-service
+spec:
+  type: LoadBalancer
+  selector:
+    		app: rgserver
+  ports:
+  - port: 5000
+    targetPort: 5000
+    protocol: TCP
+
+Once check the services section, you will see rgserver-service will be in orange colour only. To fix this, we have to Open a new terminal and connect to EC2 instance, and run the following command:
+	minikube  tunnel
+And, check the services section, you will see rgserver-service in green colour.
+To Access the backend through browser, open a new terminal and connect to EC2 instance, and run the following command:
+kubectl port-forward --address='0.0.0.0' service/rgserver-service 5000:5000
+
+And then open the browser, and access frontend using, <public_ip>:5000/api
+Click on + Icon on top right corner, and add the following script for Server Deployment (Realgrande Backend) and update the values, and then upload.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rgclient-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rgclient
+  template:
+    metadata:
+      labels:
+        app: rgclient
+    spec:
+    containers:
+      - name: rgclient
+        image: <docker hub id>/rgclient
+        ports:
+        - containerPort: 3000
+---
+apiVersion: v1
+kind: rgclient
+metadata:
+  name: rgclient-service
+spec:
+  type: LoadBalancer
+  selector:
+    		app: rgclient
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+
+To Access the frontend through browser, open a new terminal and connect to EC2 instance, and run the following command:
+kubectl port-forward --address='0.0.0.0' service/rgclient-service 3000:3000
+
+And then open the browser, and access frontend using, <public_ip>:3000
+
+
+Now, you are successfully completed deploying your project using KUBERNETES(K8S)
